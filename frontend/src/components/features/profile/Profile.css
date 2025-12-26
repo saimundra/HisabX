@@ -1,0 +1,233 @@
+/* Profile component specific styles */
+/* Most styles are in index.css, but you can add component-specific overrides here if needed */
+
+/* Profile Modal Styles */
+.profile-modal-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background-color: rgba(0, 0, 0, 0.5);
+}
+
+.profile-modal-content {
+  background-color: white;
+  border-radius: 0.5rem;
+  box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+  max-width: 28rem;
+  width: 100%;
+  margin: 1rem;
+}
+
+.profile-modal-header {
+  padding: 1.5rem;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1rem;
+}
+
+.profile-modal-close {
+  color: #6b7280;
+  cursor: pointer;
+  transition: color 0.2s;
+}
+
+.profile-modal-close:hover {
+  color: #374151;
+}
+
+.profile-avatar-large {
+  width: 6rem;
+  height: 6rem;
+  border-radius: 50%;
+  background-color: #f3f4f6;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 2rem;
+  font-weight: bold;
+}
+
+.profile-info-section {
+  border-top: 1px solid #e5e7eb;
+  padding-top: 1rem;
+}
+
+.profile-field {
+  margin-bottom: 0.75rem;
+}
+
+.profile-field-label {
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: #6b7280;
+}
+
+.profile-field-value {
+  font-size: 1.125rem;
+}
+
+/* Shared profile action buttons */
+.edit-profile-button {
+  background: #333;
+  color: var(--text-white);
+  border: none;
+  padding: 0.5rem 0.75rem;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all var(--transition-normal);
+}
+
+.edit-profile-button:hover {
+  background: #666;
+}
+
+.profile-content .info-icon {
+  background: transparent !important;
+}
+
+.profile-content .info-icon svg {
+  display: block;
+  background: transparent !important;
+}
+
+/* Additional Profile Styles */
+.info-section {
+  margin-bottom: 2rem;
+}
+
+.info-section h3 {
+  font-size: 1.2rem;
+  color: var(--text-primary);
+  margin-bottom: 1rem;
+  padding-bottom: 0.5rem;
+  border-bottom: 2px solid var(--primary-color);
+}
+
+.profile-edit-form {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.profile-edit-form .info-card {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.profile-edit-form label {
+  font-weight: 600;
+  color: var(--text-primary);
+  font-size: 0.9rem;
+}
+
+.profile-edit-form .form-input {
+  width: 100%;
+  padding: 0.75rem;
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  font-size: 1rem;
+  transition: border-color var(--transition-fast);
+}
+
+.profile-edit-form .form-input:focus {
+  outline: none;
+  border-color: var(--primary-color);
+  box-shadow: 0 0 0 3px rgba(76, 175, 80, 0.1);
+}
+
+.button-group {
+  display: flex;
+  gap: 1rem;
+  margin-top: 1rem;
+}
+
+.save-button {
+  flex: 1;
+  background: #333;
+  color: var(--text-white);
+  padding: 0.75rem 1.5rem;
+  border: none;
+  border-radius: var(--radius-md);
+  font-size: 1rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all var(--transition-normal);
+}
+
+.save-button:hover {
+  background: #666;
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-hover);
+}
+
+.save-button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  transform: none;
+}
+
+.cancel-button {
+  flex: 1;
+  background: var(--gray-200);
+  color: var(--text-primary);
+  padding: 0.75rem 1.5rem;
+  border: none;
+  border-radius: var(--radius-md);
+  font-size: 1rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all var(--transition-normal);
+}
+
+.cancel-button:hover {
+  background: var(--gray-300);
+}
+
+.cancel-button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.edit-button {
+  width: 100%;
+  background: #333;
+  color: var(--text-white);
+  padding: 0.75rem 1.5rem;
+  border: none;
+  border-radius: var(--radius-md);
+  font-size: 1rem;
+  font-weight: 500;
+  cursor: pointer;
+  margin-top: 1rem;
+  transition: all var(--transition-normal);
+}
+
+.edit-button:hover {
+  background: #666;
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-hover);
+}
+
+.message {
+  padding: 1rem;
+  border-radius: var(--radius-md);
+  margin-bottom: 1rem;
+  font-weight: 500;
+}
+
+.message.success {
+  background: var(--primary-light);
+  color: var(--primary-dark);
+  border-left: 4px solid var(--primary-color);
+}
+
+.message.error {
+  background: #ffebee;
+  color: #c62828;
+  border-left: 4px solid var(--accent-danger);
+}

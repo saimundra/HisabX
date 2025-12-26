@@ -10,6 +10,11 @@ const Register = () => {
     email: '',
     password: '',
     confirm_password: '',
+    company_name: '',
+    pan_vat_number: '',
+    business_type: '',
+    phone_number: '',
+    address: '',
   });
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
@@ -66,7 +71,21 @@ const Register = () => {
           {error && <div className="error-message">{error}</div>}
 
           <div className="form-group">
-            <label htmlFor="username">Username</label>
+            <label htmlFor="company_name">Company/Business Name *</label>
+            <input
+              type="text"
+              id="company_name"
+              name="company_name"
+              value={formData.company_name}
+              onChange={handleChange}
+              required
+              placeholder="Enter your company name"
+              className="form-input"
+            />
+          </div>
+
+          <div className="form-group">
+            <label htmlFor="username">Username *</label>
             <input
               type="text"
               id="username"
@@ -80,7 +99,7 @@ const Register = () => {
           </div>
 
           <div className="form-group">
-            <label htmlFor="email">Email Address</label>
+            <label htmlFor="email">Email Address *</label>
             <input
               type="email"
               id="email"
@@ -93,8 +112,70 @@ const Register = () => {
             />
           </div>
 
+          <div className="form-row">
+            <div className="form-group">
+              <label htmlFor="pan_vat_number">PAN/VAT Number</label>
+              <input
+                type="text"
+                id="pan_vat_number"
+                name="pan_vat_number"
+                value={formData.pan_vat_number}
+                onChange={handleChange}
+                placeholder="PAN/VAT registration number"
+                className="form-input"
+              />
+            </div>
+
+            <div className="form-group">
+              <label htmlFor="business_type">Business Type</label>
+              <select
+                id="business_type"
+                name="business_type"
+                value={formData.business_type}
+                onChange={handleChange}
+                className="form-input"
+              >
+                <option value="">Select business type</option>
+                <option value="Retail">Retail</option>
+                <option value="Wholesale">Wholesale</option>
+                <option value="Service">Service</option>
+                <option value="Manufacturing">Manufacturing</option>
+                <option value="Restaurant/Hotel">Restaurant/Hotel</option>
+                <option value="Trading">Trading</option>
+                <option value="Professional Services">Professional Services</option>
+                <option value="Other">Other</option>
+              </select>
+            </div>
+          </div>
+
           <div className="form-group">
-            <label htmlFor="password">Password</label>
+            <label htmlFor="phone_number">Phone Number</label>
+            <input
+              type="tel"
+              id="phone_number"
+              name="phone_number"
+              value={formData.phone_number}
+              onChange={handleChange}
+              placeholder="Contact number"
+              className="form-input"
+            />
+          </div>
+
+          <div className="form-group">
+            <label htmlFor="address">Address</label>
+            <input
+              type="text"
+              id="address"
+              name="address"
+              value={formData.address}
+              onChange={handleChange}
+              placeholder="Business address"
+              className="form-input"
+            />
+          </div>
+
+          <div className="form-group">
+            <label htmlFor="password">Password *</label>
             <input
               type="password"
               id="password"
@@ -108,7 +189,7 @@ const Register = () => {
           </div>
 
           <div className="form-group">
-            <label htmlFor="confirm_password">Confirm Password</label>
+            <label htmlFor="confirm_password">Confirm Password *</label>
             <input
               type="password"
               id="confirm_password"

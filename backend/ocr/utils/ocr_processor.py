@@ -237,6 +237,8 @@ def extract_vendor(lines):
         'gstin', 'gst no', 'pan no', 'cin no', 'bill to', 'ship to', 'contact no',
         'due date', 'invoice date', 'invoice #', 'invoice no', 'p.o.#', 'terms',
         'buyer name', 'buyer', 'customer name', 'vat/pan no', 'address :',
+        'issued to', 'date issued', 'billed to', 'sold to', 'issued by',  # Skip recipient/issuer labels
+        'attention', 'attn:', 'client', 'customer',  # Skip attention/client labels
         '@', 'email', 'mail', '.com', '.net', '.org',  # Skip lines with email/website
         '|'  # Skip lines with pipe separators (usually contact info)
     ]

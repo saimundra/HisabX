@@ -2,14 +2,13 @@ from rest_framework import serializers
 from .models import Bill, Category
 from django.conf import settings
 from ocr.utils.ocr_processor import process_bill_image
-from ocr.utils.excel_handler import save_to_excel
 import logging
 
 logger = logging.getLogger(__name__)
 
 class CategorySerializer(serializers.ModelSerializer):
     bill_count = serializers.SerializerMethodField()
-    total_by_currency = serializers.SerializerMethodField()
+    total_amount = serializers.SerializerMethodField()
     
     class Meta:
         model = Category
@@ -22,19 +21,16 @@ class CategorySerializer(serializers.ModelSerializer):
             return obj.bill_set.filter(user=request.user).count()
         return 0
     
-    def get_total_by_currency(self, obj):
-        """Get the total amount grouped by currency"""
+    def get_total_amount(self, obj):
+        """Get the total amount in NPR for this category"""
         from django.db.models import Sum
         request = self.context.get('request')
         if request and hasattr(request, 'user'):
-            # Group bills by currency and sum amounts
-            bills = obj.bill_set.filter(user=request.user).values('currency').annotate(
-                total=Sum('amount')
-            ).order_by('-total')
-            
-            # Return as a dictionary {currency: total}
-            return {bill['currency']: float(bill['total']) for bill in bills if bill['currency'] and bill['total']}
-        return {}
+            total = obj.bill_set.filter(user=request.user).aggregate(
+                total=Sum('amount_npr')
+            )['total']
+            return float(total) if total else 0.0
+        return 0.0
 
 class BillSerializer(serializers.ModelSerializer):
     image = serializers.ImageField(write_only=True, required=False)
@@ -47,12 +43,14 @@ class BillSerializer(serializers.ModelSerializer):
         model = Bill
         fields = [
             'id', 'image', 'image_url', 'invoice_number', 'vendor', 'amount', 'tax_amount', 
-            'currency', 'bill_date', 'category', 'category_name', 
+            'currency', 'exchange_rate', 'amount_npr', 'bill_date', 'category', 'category_name', 
             'category_color', 'is_auto_categorized', 'confidence_score',
+            'transaction_type', 'account_type', 'is_debit',
             'ocr_text', 'line_items', 'created_at', 'updated_at', 'tags', 'tags_list',
-            'notes', 'is_business_expense', 'is_recurring'
+            'notes', 'is_business_expense', 'is_reimbursable'
         ]
-        read_only_fields = ['created_at', 'updated_at', 'is_auto_categorized', 'confidence_score']
+        read_only_fields = ['created_at', 'updated_at', 'is_auto_categorized', 'confidence_score', 
+                           'transaction_type', 'account_type', 'is_debit', 'exchange_rate', 'amount_npr']
 
     def get_image_url(self, obj):
         request = self.context.get("request")
@@ -105,49 +103,86 @@ class BillSerializer(serializers.ModelSerializer):
             instance.bill_date = bill_data.get('bill_date')
             instance.line_items = bill_data.get('line_items', [])
             
+            # Extract PAN/VAT/Tax ID number from OCR text
+            import re
+            extracted_pan_vat = None
+            if instance.ocr_text:
+                # Tax ID patterns for multiple countries
+                pan_patterns = [
+                    # Nepal
+                    r'(?:PAN\s*(?:number|no\.?|#)?)[:\s]*([0-9]{9})',  # PAN: 9 digits
+                    r'(?:VAT\s*(?:number|no\.?|#)?)[:\s]*([0-9]{13})',  # VAT: 13 digits
+                    r'(?:PN|VN|TIN)[:\s#]*([0-9]{7,13})',  # Generic Nepal
+                    
+                    # India
+                    r'(?:PAN)[:\s#]*([A-Z]{5}[0-9]{4}[A-Z])',  # PAN: ABCDE1234F
+                    r'(?:GSTIN?)[:\s#]*([0-9]{2}[A-Z]{5}[0-9]{4}[A-Z][0-9][A-Z][0-9])',  # GSTIN: 15 chars
+                    
+                    # Australia
+                    r'(?:ABN)[:\s#]*([0-9]{11})',  # ABN: 11 digits
+                    r'(?:ACN)[:\s#]*([0-9]{9})',  # ACN: 9 digits
+                    
+                    # USA
+                    r'(?:SSN)[:\s#]*([0-9]{3}[\-]?[0-9]{2}[\-]?[0-9]{4})',  # SSN: 123-45-6789
+                    r'(?:EIN)[:\s#]*([0-9]{2}[\-]?[0-9]{7})',  # EIN: 12-3456789
+                    r'(?:ITIN)[:\s#]*([9][0-9]{2}[\-]?[7][0-9][\-]?[0-9]{4})',  # ITIN: 9XX-7X-XXXX
+                    
+                    # European Union
+                    r'(?:VAT|Tax\s*ID)[:\s#]*(DE[0-9]{9})',  # Germany
+                    r'(?:VAT|Tax\s*ID)[:\s#]*(FR[A-Z0-9]{2}[0-9]{9})',  # France
+                    r'(?:VAT|Tax\s*ID)[:\s#]*(GB[0-9]{9})',  # UK
+                    r'(?:VAT|Tax\s*ID)[:\s#]*(IT[0-9]{11})',  # Italy
+                    r'(?:VAT|Tax\s*ID)[:\s#]*(ES[A-Z0-9][0-9]{7}[A-Z0-9])',  # Spain
+                    r'(?:VAT|Tax\s*ID)[:\s#]*([A-Z]{2}[A-Z0-9]{8,12})',  # Generic EU VAT
+                ]
+                
+                for pattern in pan_patterns:
+                    match = re.search(pattern, instance.ocr_text.upper())
+                    if match:
+                        # Remove hyphens and spaces for consistent comparison
+                        extracted_pan_vat = re.sub(r'[\s\-]', '', match.group(1))
+                        logger.info(f"Extracted Tax ID from bill: {extracted_pan_vat}")
+                        break
+            
             # Check for duplicate invoice before proceeding
-            # Primary check: Same invoice number + Same vendor + Same user
+            # Multiple checks for duplicate detection
             is_duplicate = False
             duplicate = None
+            duplicate_reason = None
             
+            # Check 1: Same invoice number + Same vendor
             if instance.invoice_number and instance.vendor:
-                # Normalize vendor name for comparison (case-insensitive, strip whitespace)
                 vendor_normalized = instance.vendor.strip().lower()
                 
-                # Find potential duplicates by invoice number + vendor
                 potential_duplicates = Bill.objects.filter(
                     user=user,
-                    invoice_number__iexact=instance.invoice_number.strip(),  # Case-insensitive
-                    vendor__iexact=vendor_normalized  # Case-insensitive
+                    invoice_number__iexact=instance.invoice_number.strip(),
+                    vendor__iexact=vendor_normalized
                 ).exclude(id=instance.id)
                 
                 if potential_duplicates.exists():
                     is_duplicate = True
                     duplicate = potential_duplicates.first()
-                    logger.warning(
-                        f"Duplicate bill detected for user {user.username}: "
-                        f"Invoice #{instance.invoice_number} from {instance.vendor}"
-                    )
+                    duplicate_reason = f"Invoice #{instance.invoice_number} from {instance.vendor}"
+                    logger.warning(f"Duplicate bill detected for user {user.username}: {duplicate_reason}")
             
-            # Fallback check: Same amount + Same vendor + Same date (if invoice number not available)
-            elif instance.amount and instance.vendor and instance.bill_date:
-                vendor_normalized = instance.vendor.strip().lower()
-                
-                # Find potential duplicates by amount + vendor + date
+            # Check 2: Same invoice number + Same PAN/VAT (different vendor name but same business)
+            if not is_duplicate and instance.invoice_number and extracted_pan_vat:
+                # Find bills with the same PAN/VAT in OCR text
                 potential_duplicates = Bill.objects.filter(
                     user=user,
-                    amount=instance.amount,
-                    vendor__iexact=vendor_normalized,
-                    bill_date=instance.bill_date
+                    invoice_number__iexact=instance.invoice_number.strip(),
+                    ocr_text__icontains=extracted_pan_vat
                 ).exclude(id=instance.id)
                 
                 if potential_duplicates.exists():
                     is_duplicate = True
                     duplicate = potential_duplicates.first()
-                    logger.warning(
-                        f"Duplicate bill detected for user {user.username}: "
-                        f"Same amount (${instance.amount}), vendor ({instance.vendor}), and date ({instance.bill_date})"
-                    )
+                    duplicate_reason = f"Invoice #{instance.invoice_number} with PAN/VAT {extracted_pan_vat}"
+                    logger.warning(f"Duplicate bill detected for user {user.username}: {duplicate_reason}")
+            
+            # Allow multiple bills from same PAN/VAT as long as invoice numbers are different
+            # This handles the case where same business issues multiple bills
             
             # If duplicate found, reject the upload
             if is_duplicate and duplicate:
@@ -163,7 +198,7 @@ class BillSerializer(serializers.ModelSerializer):
                 
                 raise serializers.ValidationError({
                     'error': 'Duplicate bill detected',
-                    'message': 'This bill already exists. A bill with the same details was already uploaded.',
+                    'message': f'This bill already exists: {duplicate_reason}',
                     'duplicate_bill_id': duplicate.id,
                 })
             
@@ -211,6 +246,84 @@ class BillSerializer(serializers.ModelSerializer):
                 instance.confidence_score = confidence
                 logger.info(f"Auto-categorized bill as '{category.name}' with confidence {confidence:.2f}")
             
+            # Determine if this is user's company bill (income) or external vendor bill (expense)
+            is_own_company = False
+            match_reason = None
+            
+            # Method 1: Check if vendor name matches user's company name
+            if instance.vendor and user.company_name:
+                vendor_normalized = instance.vendor.strip().lower()
+                company_normalized = user.company_name.strip().lower()
+                
+                # Skip if vendor contains common invoice recipient indicators
+                # These phrases indicate this is who the invoice was issued TO, not issued BY
+                recipient_indicators = [
+                    'issued to', 'bill to', 'billed to', 'sold to', 
+                    'customer', 'client', 'attention', 'attn'
+                ]
+                skip_matching = any(indicator in vendor_normalized for indicator in recipient_indicators)
+                
+                if not skip_matching:
+                    # Remove common business suffixes for better matching
+                    import re
+                    business_suffixes = r'\s*(pvt\.?|ltd\.?|limited|private|inc\.?|llc|corp\.?|corporation|co\.?)\s*'
+                    vendor_clean = re.sub(business_suffixes, '', vendor_normalized, flags=re.IGNORECASE).strip()
+                    company_clean = re.sub(business_suffixes, '', company_normalized, flags=re.IGNORECASE).strip()
+                    
+                    # Require minimum length to avoid false positives
+                    min_match_length = 5
+                    
+                    # Check for exact match or strong partial match
+                    if len(company_clean) >= min_match_length:
+                        if (vendor_normalized == company_normalized or 
+                            vendor_clean == company_clean or
+                            (vendor_normalized.startswith(company_normalized) and len(company_normalized) >= min_match_length) or
+                            (company_normalized.startswith(vendor_normalized) and len(vendor_normalized) >= min_match_length)):
+                            is_own_company = True
+                            match_reason = f"vendor name '{instance.vendor}' matches company '{user.company_name}'"
+                            logger.info(f"INCOME DETECTED: {match_reason}")
+            
+            # Method 2: Check if PAN/VAT number appears in OCR text (fallback when vendor not extracted)
+            if not is_own_company and user.pan_vat_number and instance.ocr_text:
+                # Normalize PAN/VAT number (remove spaces, hyphens, convert to uppercase)
+                import re
+                pan_vat_normalized = re.sub(r'[\s\-]', '', user.pan_vat_number.strip().upper())
+                
+                # Use word boundaries to prevent matching PAN/VAT inside account numbers or other digits
+                # Look for PAN/VAT with context clues like labels (PAN:, VAT:, TIN:, etc.)
+                pan_vat_patterns = [
+                    # With explicit labels (most reliable)
+                    rf'(?:PAN|VAT|TIN|TAX\s*ID|REGISTRATION)\s*(?:NO\.?|NUMBER|#)?\s*[:\-]?\s*{re.escape(pan_vat_normalized)}',
+                    # Standalone with word boundaries (stricter - requires minimum 9 digits to avoid false positives)
+                    rf'\b{re.escape(pan_vat_normalized)}\b' if len(pan_vat_normalized) >= 9 else None,
+                ]
+                
+                # Remove None patterns and search
+                pan_vat_patterns = [p for p in pan_vat_patterns if p]
+                for pattern in pan_vat_patterns:
+                    if re.search(pattern, instance.ocr_text.upper()):
+                        is_own_company = True
+                        match_reason = f"PAN/VAT '{user.pan_vat_number}' found in bill"
+                        logger.info(f"INCOME DETECTED: PAN/VAT number '{user.pan_vat_number}' detected in OCR text - bill belongs to user's company")
+                        break
+            
+            # Set transaction type based on ownership - THIS IS CRITICAL
+            if is_own_company:
+                # This is income - bill issued by user's own company
+                instance.transaction_type = 'CREDIT'
+                instance.account_type = 'REVENUE'
+                instance.is_debit = False
+                logger.info(f"✓ Bill identified as user's company invoice ({match_reason}) - marked as REVENUE (CREDIT)")
+            else:
+                # This is an expense - bill from external vendor
+                instance.transaction_type = 'DEBIT'
+                instance.account_type = 'EXPENSE'
+                instance.is_debit = True
+                if instance.vendor:
+                    logger.info(f"Bill vendor '{instance.vendor}' is external - marked as EXPENSE (DEBIT)")
+                else:
+                    logger.info(f"Bill marked as EXPENSE (DEBIT) - no vendor/PAN match found")
+            
             try:
                 instance.save()
             except Exception as e:
@@ -240,18 +353,6 @@ class BillSerializer(serializers.ModelSerializer):
                 else:
                     # Re-raise other exceptions
                     raise
-            
-            # Save to Excel for record keeping
-            if bill_data.get('ocr_text'):
-                save_to_excel([{
-                    "Bill ID": instance.id,
-                    "Invoice Number": instance.invoice_number or "N/A",
-                    "Vendor": instance.vendor or "Unknown",
-                    "Amount": str(instance.amount) if instance.amount else "N/A",
-                    "Category": instance.category.name if instance.category else "Uncategorized",
-                    "Confidence": f"{instance.confidence_score:.2f}" if instance.confidence_score else "N/A",
-                    "Text": bill_data['ocr_text']
-                }])
             
         except serializers.ValidationError:
             # Re-raise validation errors (like duplicate detection)

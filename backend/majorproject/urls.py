@@ -33,8 +33,8 @@ urlpatterns = [
     path("api/change-password/", ChangePasswordView.as_view()),
     path("api/profile/",ProfileView.as_view()),
     path('admin/', admin.site.urls),
-    path ('api/', include(router.urls)),
-    path('api/', include('reports.urls')),
+    path('api/', include('reports.urls')),  # Reports and financial statements - MUST come before router
+    path('api/', include(router.urls)),  # Bills and categories router
 ]
 from rest_framework_simplejwt.views import TokenRefreshView
 urlpatterns += [

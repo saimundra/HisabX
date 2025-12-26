@@ -16,7 +16,7 @@ class RegisterSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = User
-        fields = ["username", "email", "password", "confirm_password"]
+        fields = ["username", "email", "password", "confirm_password", "company_name", "pan_vat_number", "business_type", "phone_number", "address"]
         extra_kwargs = {
             "password ": {"write_only":True},
             "email": {"requried":True},
@@ -33,21 +33,48 @@ class RegisterSerializer(serializers.ModelSerializer):
         user = User.objects.create_user(
             username=validated_data["username"],
             email=validated_data["email"],
-            password=validated_data["password"]
+            password=validated_data["password"],
+            company_name=validated_data.get("company_name", ""),
+            pan_vat_number=validated_data.get("pan_vat_number", ""),
+            business_type=validated_data.get("business_type", ""),
+            phone_number=validated_data.get("phone_number", ""),
+            address=validated_data.get("address", ""),
         )
+        
+        # Automatically add company to vendor CSV for categorization
+        if user.company_name and user.business_type:
+            from accounts.utils import add_company_to_vendor_csv
+            add_company_to_vendor_csv(user.company_name, user.business_type)
+        
         return user
 
 class PublicUserSerializer(serializers.ModelSerializer):
     class Meta:
         model = User
-        fields = ["id","username","email"]
-        read_only_fields = ["id","username","email"]
+        fields = ["id", "username", "email", "company_name", "pan_vat_number", "business_type", "phone_number", "address"]
+        read_only_fields = ["id", "username", "email"]
 
 class UserUpdateSerializer(serializers.ModelSerializer):
    class Meta:
         model = User
-        fields = ["id","username","email",]
-        read_only_fields = ["id",] 
+        fields = ["id", "username", "email", "company_name", "pan_vat_number", "business_type", "phone_number", "address"]
+        read_only_fields = ["id", "username", "email"]
+   
+   def update(self, instance, validated_data):
+        # Update user fields
+        instance.company_name = validated_data.get('company_name', instance.company_name)
+        instance.pan_vat_number = validated_data.get('pan_vat_number', instance.pan_vat_number)
+        instance.business_type = validated_data.get('business_type', instance.business_type)
+        instance.phone_number = validated_data.get('phone_number', instance.phone_number)
+        instance.address = validated_data.get('address', instance.address)
+        instance.save()
+        
+        # Automatically add company to vendor CSV for categorization
+        if instance.company_name and instance.business_type:
+            from accounts.utils import add_company_to_vendor_csv
+            add_company_to_vendor_csv(instance.company_name, instance.business_type)
+        
+        return instance 
 
 class LoginSerializer(serializers.Serializer):
     

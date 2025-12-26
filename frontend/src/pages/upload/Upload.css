@@ -76,16 +76,6 @@
   overflow: hidden;
 }
 
-.motivation-box::before {
-  content: '💡';
-  position: absolute;
-  font-size: 4rem;
-  opacity: 0.1;
-  right: 10px;
-  top: 50%;
-  transform: translateY(-50%);
-}
-
 .motivation-text {
   font-size: 1.2rem;
   font-weight: 600;

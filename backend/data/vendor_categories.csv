@@ -1,4 +1,5 @@
 vendor,category,confidence
+hello private limited,Business,0.95
 walmart,Shopping,0.95
 target,Shopping,0.95
 amazon,Shopping,0.90

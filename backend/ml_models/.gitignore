@@ -1,0 +1,6 @@
+# Ignore trained ML models (can be regenerated)
+*.pkl
+*.joblib
+
+# Keep directory structure
+!.gitkeep

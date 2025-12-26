@@ -120,13 +120,7 @@ const Upload = () => {
           const formData = new FormData();
           formData.append('image', file);
 
-          console.log('FormData contents:', {
-            formDataKeys: Array.from(formData.keys()),
-          });
-
           const response = await api.post('/bills/', formData);
-
-          console.log('Upload response:', response);
 
           if (response.status === 201) {
             successCount++;
@@ -136,11 +130,6 @@ const Upload = () => {
           setUploadProgress(((i + 1) / files.length) * 100);
         } catch (error) {
           console.error(`Upload error for ${file.name}:`, error);
-          console.error('Error details:', {
-            response: error.response?.data,
-            status: error.response?.status,
-            message: error.message
-          });
           failCount++;
           
           // Handle duplicate bill error
